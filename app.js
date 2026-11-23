@@ -3,29 +3,62 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   const STORE_KEY = 'qch.v1';
   const TIMERS_KEY = 'qch.timers';
   const DEFAULT_TAGS = ['Primeros y segundos', 'Pan, masas y repostería', 'Postres y helados', 'Rápidas y entre semana'];
   const UTENSIL_TYPES = ['Thermomix', 'Olla', 'Olla a presión', 'Horno', 'Airfryer', 'Sartén', 'Otro'];
-  /* Pictogramas propios (no son los oficiales de Thermomix) y datos verificados de los modos de la TM7. */
+  /* Pictogramas propios (dibujados para esta app, no son los oficiales de Thermomix).
+     Orden y nombres de los modos tal y como aparecen en la pantalla de la Thermomix. */
+  const ICONS = {
+    modo: '<circle cx="24" cy="24" r="12" class="st"/><circle cx="24" cy="24" r="3"/>',
+    amasar: '<path d="M24 44V18" class="st"/><ellipse cx="18" cy="31" rx="3" ry="6" transform="rotate(-35 18 31)"/><ellipse cx="30" cy="31" rx="3" ry="6" transform="rotate(35 30 31)"/><ellipse cx="18" cy="21" rx="3" ry="6" transform="rotate(-35 18 21)"/><ellipse cx="30" cy="21" rx="3" ry="6" transform="rotate(35 30 21)"/><ellipse cx="24" cy="11" rx="3" ry="6"/>',
+    turbo: '<path d="M24 24a2 2 0 0 1 4 0a5 5 0 0 1-10 0a9 9 0 0 1 18 0a13 13 0 0 1-26 0" class="st"/>',
+    triturar: '<circle cx="24" cy="24" r="19" class="st"/><path d="M24 24C21 17 24 10 33 8C34 16 30 22 24 24Z"/><path d="M24 24C21 17 24 10 33 8C34 16 30 22 24 24Z" transform="rotate(90 24 24)"/><path d="M24 24C21 17 24 10 33 8C34 16 30 22 24 24Z" transform="rotate(180 24 24)"/><path d="M24 24C21 17 24 10 33 8C34 16 30 22 24 24Z" transform="rotate(270 24 24)"/><circle cx="24" cy="24" r="3" class="bg"/>',
+    huevos: '<path d="M24 6c9 0 14 12 14 20a14 14 0 0 1-28 0c0-8 5-20 14-20z"/><path d="M12 29q3-3 6 0t6 0t6 0t6 0" class="wv"/>',
+    hervidor: '<path d="M13 20h18l3 20H10z"/><path d="M31 22l9-8" class="st"/><path d="M13 22c-8 0-8 12 0 12" class="st"/><rect x="16" y="14" width="12" height="5" rx="2"/>',
+    calentar: '<rect x="21" y="6" width="6" height="26" rx="3"/><circle cx="24" cy="36" r="7"/><circle cx="35" cy="10" r="2.5"/>',
+    balanza: '<path d="M24 10v28M15 38h18M9 16h30" class="st"/><path d="M9 16l-5 11h10zM39 16l-5 11h10z"/>',
+    trocear: '<path d="M8 40L32 10Q38 10 40 16L16 42Z"/><circle cx="38" cy="36" r="1.8"/><circle cx="31" cy="40" r="1.8"/><circle cx="43" cy="29" r="1.8"/>',
+    prelavado: '<path d="M10 14h22v16a8 8 0 0 1-8 8h-6a8 8 0 0 1-8-8z" class="st"/><path d="M32 18h3a5 5 0 0 1 0 10h-3" class="st"/><path d="M21 20c4 5 5 7 0 11-5-4-4-6 0-11z"/>',
+    espesar: '<path d="M6 20h26c0 10-4 17-13 17S6 30 6 20z"/><path d="M32 20c3-5 8-7 11-6-2 4-6 6-11 6z"/><rect x="12" y="38" width="14" height="3" rx="1.5"/>',
+    arroz: '<path d="M6 26h36a18 15 0 0 1-36 0z"/><path d="M15 8q4 4 0 9M24 6q4 4 0 9M33 8q4 4 0 9" class="st"/>',
+    pelar: '<path d="M15 8h18v9a9 9 0 0 1-7 8.8V42h-4V25.8A9 9 0 0 1 15 17z"/><rect x="21" y="12" width="6" height="6" rx="2" class="bg"/>',
+    rallar: '<path d="M17 6h14l5 36H12z"/><circle cx="20" cy="22" r="1.9" class="bg"/><circle cx="28" cy="22" r="1.9" class="bg"/><circle cx="24" cy="30" r="1.9" class="bg"/><circle cx="18" cy="35" r="1.9" class="bg"/><circle cx="30" cy="35" r="1.9" class="bg"/>',
+    laminar: '<path d="M17 6h14l3 36H14z"/><rect x="19" y="16" width="10" height="2.8" rx="1.4" class="bg"/><rect x="19" y="24" width="10" height="2.8" rx="1.4" class="bg"/><rect x="19" y="32" width="10" height="2.8" rx="1.4" class="bg"/>',
+    fermentar: '<rect x="14" y="7" width="20" height="7" rx="2"/><rect x="11" y="15" width="26" height="27" rx="6"/><circle cx="20" cy="25" r="1.8" class="bg"/><circle cx="28" cy="25" r="1.8" class="bg"/><circle cx="24" cy="31" r="1.8" class="bg"/><circle cx="19" cy="36" r="1.8" class="bg"/><circle cx="29" cy="36" r="1.8" class="bg"/>',
+    lenta: '<circle cx="24" cy="24" r="17" class="st"/><path d="M24 24V11a13 13 0 0 1 11.3 19.5Z"/>',
+    vacio: '<rect x="22" y="8" width="4" height="24" rx="2"/><circle cx="24" cy="36" r="5.5"/><path d="M4 18q3-3 6 0t6 0M32 18q3-3 6 0t6 0" class="st"/>',
+    sintapa: '<path d="M9 20h30l-3 18a4 4 0 0 1-4 3H16a4 4 0 0 1-4-3z"/><path d="M5 22h4M39 22h4" class="st"/><path d="M18 8q3 3 0 7M30 8q3 3 0 7" class="st"/>',
+    dorar: '<ellipse cx="22" cy="31" rx="16" ry="7"/><path d="M36 29l9-6" class="st"/><path d="M14 14l2 6M22 11l1 7M30 14l-1 6" class="st"/>',
+    vapor: '<path d="M10 38h28" class="st"/><path d="M16 8q4 5 0 10t0 10M24 6q4 5 0 10t0 10M32 8q4 5 0 10t0 10" class="st"/>',
+    time: '<circle cx="24" cy="24" r="16" class="st"/><path d="M24 14v11l7 4" class="st"/>',
+    vel: '<path d="M7 36a17 17 0 0 1 34 0" class="st"/><path d="M24 36l9-13" class="st"/><circle cx="24" cy="36" r="3.2"/>',
+    cuchara: '<ellipse cx="24" cy="15" rx="8" ry="10"/><path d="M24 25v18" class="st"/>',
+    reverse: '<path d="M36 17a14 14 0 1 0 3 12" class="st"/><path d="M38 6v11H27" class="st"/>'
+  };
+  const tmIcon = (k) => `<svg class="tm-ic" viewBox="0 0 48 48" aria-hidden="true">${ICONS[k] || ICONS.modo}</svg>`;
   const MODES = [
-    { k: ['sin tapa'], name: 'Sin tapa', icon: '🍳', tip: 'Cocina hasta 100 °C sin giro de cuchillas y sin tapa. Ideal para ingredientes delicados.' },
-    { k: ['dorar'], name: 'Dorar', icon: '🧅', tip: 'La TM7 tiene dos tipos de dorado.' },
-    { k: ['al vapor', 'vapor'], name: 'Al vapor', icon: '♨️', tip: 'Cocina al vapor con el Varoma y el cestillo.' },
-    { k: ['amasar'], name: 'Amasar', icon: '🥖', tip: 'Para panes, pizzas y pasta. Dos minutos equivalen a unos diez de amasado a mano.' },
-    { k: ['triturar'], name: 'Triturar', icon: '🌀', tip: 'Ideal para sopas y cremas.' },
-    { k: ['huevo'], name: 'Cocción de huevos', icon: '🥚', tip: 'De 2 a 6 huevos M fríos, sin el cestillo y con agua hasta la marca de 1 litro. Eliges el punto de cocción.' },
-    { k: ['hervidor', 'hervir'], name: 'Hervidor', icon: '🫖', tip: 'Para hervir agua.' },
-    { k: ['espesar'], name: 'Espesar', icon: '🥣', tip: 'Para espesar salsas y cremas.' },
-    { k: ['arroz'], name: 'Cocción de arroz', icon: '🍚', tip: 'Para cocer arroz.' },
-    { k: ['lenta'], name: 'Cocción lenta', icon: '🐢', tip: 'Para cocinar, hervir o guisar durante más tiempo.' },
-    { k: ['al vacio', 'vacio'], name: 'Al vacío', icon: '🥩', tip: 'Cocción al vacío (sous-vide).' },
-    { k: ['fermenta'], name: 'Fermentación', icon: '🫧', tip: 'Para fermentaciones, por ejemplo de masas.' },
-    { k: ['calentar'], name: 'Calentar', icon: '🔥', tip: 'Para calentar.' },
-    { k: ['turbo'], name: 'Turbo', icon: '⚡', tip: 'Golpes de máxima potencia y corta duración.' },
-    { k: ['rallar'], name: 'Rallar', icon: '🧀', tip: 'Rallado grueso o fino, con el accesorio correspondiente.' },
-    { k: ['laminar'], name: 'Laminar', icon: '🥒', tip: 'Para cortar en láminas, con el accesorio correspondiente.' }
+    { k: ['amasar'], name: 'Amasar', ic: 'amasar', tip: 'Para panes, pizzas y pasta. Dos minutos equivalen a unos diez de amasado a mano.' },
+    { k: ['turbo'], name: 'Turbo', ic: 'turbo', tip: 'Golpes de máxima potencia y corta duración.' },
+    { k: ['triturar'], name: 'Triturar', ic: 'triturar', tip: 'Ideal para sopas y cremas.' },
+    { k: ['huevo'], name: 'Cocción de huevos', ic: 'huevos', tip: 'De 2 a 6 huevos M fríos, sin el cestillo y con agua hasta la marca de 1 litro. Eliges el punto de cocción.' },
+    { k: ['hervidor', 'hervir'], name: 'Hervidor', ic: 'hervidor', tip: 'Para hervir agua.' },
+    { k: ['calentar'], name: 'Calentar', ic: 'calentar', tip: 'Para calentar.' },
+    { k: ['balanza', 'bascula', 'pesar'], name: 'Balanza', ic: 'balanza', tip: 'Para pesar los ingredientes directamente en el vaso.' },
+    { k: ['trocear', 'picar'], name: 'Trocear', ic: 'trocear', tip: 'Para trocear o picar con las cuchillas.' },
+    { k: ['prelavado'], name: 'Prelavado', ic: 'prelavado', tip: 'Para prelavar el vaso.' },
+    { k: ['espesar'], name: 'Espesar', ic: 'espesar', tip: 'Para espesar salsas y cremas.' },
+    { k: ['arroz'], name: 'Cocción de arroz', ic: 'arroz', tip: 'Para cocer arroz.' },
+    { k: ['pelar'], name: 'Pelar', ic: 'pelar', tip: 'Para pelar con el accesorio correspondiente.' },
+    { k: ['rallar'], name: 'Rallar', ic: 'rallar', tip: 'Rallado grueso o fino, con el accesorio correspondiente.' },
+    { k: ['laminar'], name: 'Laminar', ic: 'laminar', tip: 'Para cortar en láminas, con el accesorio correspondiente.' },
+    { k: ['fermenta'], name: 'Fermentar', ic: 'fermentar', tip: 'Para fermentaciones, por ejemplo de masas.' },
+    { k: ['lenta'], name: 'Cocción lenta', ic: 'lenta', tip: 'Para cocinar, hervir o guisar durante más tiempo.' },
+    { k: ['al vacio', 'vacio'], name: 'Cocción al vacío', ic: 'vacio', tip: 'Cocción al vacío (sous-vide).' },
+    { k: ['sin tapa'], name: 'Sin tapa', ic: 'sintapa', tip: 'Cocina hasta 100 °C sin giro de cuchillas y sin tapa. Ideal para ingredientes delicados.' },
+    { k: ['dorar'], name: 'Dorar', ic: 'dorar', tip: 'La TM7 tiene dos tipos de dorado.' },
+    { k: ['al vapor', 'vapor'], name: 'Al vapor', ic: 'vapor', tip: 'Cocina al vapor con el Varoma y el cestillo.' }
   ];
   const findMode = (name) => { const n = norm(name); return MODES.find((m) => m.k.some((k) => n.includes(k))); };
   const SLOT_LABELS = { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena' };
@@ -381,15 +414,16 @@
   }
 
   /* ---------- vistas: receta ---------- */
+  const badge = (ic, label) => `<span class="tm-badge"><span class="tm-circ">${tmIcon(ic)}</span><span class="tm-lab">${label}</span></span>`;
   function tmChips(tm) {
     if (!tm) return '';
-    const c = [];
-    if (tm.mode) { const m = findMode(tm.mode); c.push((m ? m.icon + ' ' : '') + esc(tm.mode)); }
-    if (tm.time) c.push('⏱ ' + esc(tm.time));
-    if (tm.temp) c.push('🌡 ' + (/^\d+$/.test(tm.temp) ? tm.temp + ' °C' : esc(tm.temp)));
-    if (tm.speed) c.push(/^\d+([.,]\d+)?$/.test(tm.speed) ? 'vel. ' + esc(tm.speed) : /cuchara/i.test(tm.speed) ? '🥄 ' + esc(tm.speed) : esc(tm.speed));
-    if (tm.reverse) c.push('↺ giro inverso');
-    return c.length ? `<div class="chips">${c.map((x) => `<span class="chip tm">${x}</span>`).join('')}</div>` : '';
+    const b = [];
+    if (tm.mode) { const m = findMode(tm.mode); b.push(badge(m ? m.ic : 'modo', esc(tm.mode))); }
+    if (tm.time) b.push(badge('time', esc(tm.time)));
+    if (tm.temp) b.push(/varoma/i.test(tm.temp) ? badge('vapor', 'Varoma') : badge('calentar', /^\d+$/.test(tm.temp) ? tm.temp + ' °C' : esc(tm.temp)));
+    if (tm.speed) b.push(/cuchara/i.test(tm.speed) ? badge('cuchara', 'cuchara') : badge('vel', /^\d+([.,]\d+)?$/.test(tm.speed) ? 'vel. ' + esc(tm.speed) : esc(tm.speed)));
+    if (tm.reverse) b.push(badge('reverse', 'giro inverso'));
+    return b.length ? `<div class="tm-row">${b.join('')}</div>` : '';
   }
   function tmHowTo(tm) {
     const out = [], m = tm.mode ? findMode(tm.mode) : null;
@@ -642,7 +676,7 @@
   /* ---------- vistas: guía Thermomix ---------- */
   function viewGuide() {
     const P = (t, d) => `<div class="slot"><span class="lbl" style="width:6.5rem"><strong>${t}</strong></span><span class="val">${d}</span></div>`;
-    return `<p class="muted">Para cocinar a mano en la Thermomix sin saber nada. Los dibujos son de esta app (no son los símbolos oficiales de la Thermomix): sirven para reconocer cada modo por su nombre. Ante cualquier duda, manda el manual de tu modelo.</p>
+    return `<p class="muted">Para cocinar a mano en la Thermomix sin saber nada. Los dibujos son de esta app, parecidos a los botones de la pantalla de la Thermomix (no son los símbolos oficiales): sirven para reconocer cada modo por su nombre. Ante cualquier duda, manda el manual de tu modelo.</p>
       <div class="card"><h3>Cómo leer los parámetros</h3>
         ${P('Modo', 'Se elige en la pantalla. Prepara la Thermomix para un tipo de tarea (amasar, triturar, cocinar al vapor…).')}
         ${P('Tiempo', 'Cuánto debe funcionar. Por ejemplo «20 s» son veinte segundos y «6 min», seis minutos.')}
@@ -655,7 +689,7 @@
         ${P('Mariposa', 'Para montar o mezclar suave. En general no se sube de velocidad 4 con ella: mira el manual de tu modelo.')}
       </div>
       <div class="card"><h3>Los modos de la TM7</h3>
-        ${MODES.map((m) => `<div class="slot"><span class="lbl" style="width:2.2rem;font-size:1.5rem">${m.icon}</span><span class="val"><strong>${esc(m.name)}</strong><div class="muted small">${esc(m.tip)}</div></span></div>`).join('')}
+        ${MODES.map((m) => `<div class="slot" style="align-items:center"><span class="tm-circ" style="width:3rem;height:3rem;flex:none">${tmIcon(m.ic)}</span><span class="val"><strong>${esc(m.name)}</strong><div class="muted small">${esc(m.tip)}</div></span></div>`).join('')}
       </div>`;
   }
 
@@ -856,7 +890,7 @@
     tmHelp(el) {
       const r = getRecipe(el.dataset.r), st = r && r.steps[Number(el.dataset.i)];
       if (!st || !st.tm) return;
-      openSheet(`<h3>Cómo se hace en la Thermomix</h3><p class="muted">${esc(st.text)}</p>${tmChips(st.tm)}<ol class="steps">${tmHowTo(st.tm).map((t) => `<li>${esc(t)}</li>`).join('')}</ol>${st.tm.mode && findMode(st.tm.mode) ? `<div class="hint">${findMode(st.tm.mode).icon} ${esc(findMode(st.tm.mode).tip)}</div>` : ''}<p class="muted small">Si la receta dice algo distinto, sigue siempre lo de la receta.</p><div class="btn-row"><button class="btn ghost" data-act="openGuide">Guía completa</button><button class="btn" data-act="closeSheet">Entendido</button></div>`);
+      openSheet(`<h3>Cómo se hace en la Thermomix</h3><p class="muted">${esc(st.text)}</p>${tmChips(st.tm)}<ol class="steps">${tmHowTo(st.tm).map((t) => `<li>${esc(t)}</li>`).join('')}</ol>${st.tm.mode && findMode(st.tm.mode) ? `<div class="hint">💡 ${esc(findMode(st.tm.mode).tip)}</div>` : ''}<p class="muted small">Si la receta dice algo distinto, sigue siempre lo de la receta.</p><div class="btn-row"><button class="btn ghost" data-act="openGuide">Guía completa</button><button class="btn" data-act="closeSheet">Entendido</button></div>`);
     },
     startCook(el) { startCook(el.dataset.id); },
     closeCook() { closeCook(); },
