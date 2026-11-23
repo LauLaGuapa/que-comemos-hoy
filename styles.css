@@ -195,3 +195,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   .overlay { align-items: center; }
   .sheet { border-radius: 22px; }
 }
+
+/* Estadísticas */
+.bar-row { display: flex; align-items: center; gap: .6rem; margin: .35rem 0; font-size: .92rem; }
+.bar-l { width: 7.5rem; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar { flex: 1; height: .8rem; background: var(--line); border-radius: 999px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--accent); border-radius: 999px; }
+.bar-n { width: 1.6rem; text-align: right; font-weight: 700; color: var(--accent-dark); }

@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const STORE_KEY = 'qch.v1';
   const TIMERS_KEY = 'qch.timers';
   const DEFAULT_TAGS = ['Primeros y segundos', 'Pan, masas y repostería', 'Postres y helados', 'Rápidas y entre semana'];
@@ -57,6 +57,7 @@
     recipes: [],
     utensils: [],
     menu: {},
+    log: [],
     settings: { created: new Date().toISOString(), lastBackup: null, showBreakfast: false }
   });
 
@@ -67,7 +68,7 @@
         const s = JSON.parse(raw);
         if (s && Array.isArray(s.recipes)) {
           const d = defaultState();
-          return { ...d, ...s, settings: { ...d.settings, ...(s.settings || {}) }, utensils: s.utensils || [], menu: s.menu || {} };
+          return { ...d, ...s, settings: { ...d.settings, ...(s.settings || {}) }, utensils: s.utensils || [], menu: s.menu || {}, log: Array.isArray(s.log) ? s.log : [] };
         }
       }
     } catch (e) { storageOk = false; }
@@ -191,6 +192,29 @@
     };
   }
 
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  function normMenu(m) {
+    const out = {};
+    if (!m || typeof m !== 'object') return out;
+    for (const [day, slots] of Object.entries(m)) {
+      if (!DATE_RE.test(day) || !slots || typeof slots !== 'object') continue;
+      for (const slot of Object.keys(SLOT_LABELS)) {
+        const e = slots[slot];
+        if (!e) continue;
+        const v = typeof e === 'string' ? { text: e } : e;
+        const entry = {};
+        if (v.recipeId) entry.recipeId = String(v.recipeId);
+        if (v.text) entry.text = String(v.text);
+        if (entry.recipeId || entry.text) { out[day] = out[day] || {}; out[day][slot] = entry; }
+      }
+    }
+    return out;
+  }
+  function normLog(l) {
+    if (!l || !DATE_RE.test(String(l.date || ''))) return null;
+    return { id: l.id ? String(l.id) : uid('l'), recipeId: l.recipeId ? String(l.recipeId) : '', name: String(l.name || 'Receta'), date: String(l.date), servings: Number(l.servings) > 0 ? Number(l.servings) : null, rating: Number(l.rating) >= 1 && Number(l.rating) <= 5 ? Number(l.rating) : 0 };
+  }
+
   /* ---------- UI: toast, hojas y confirmaciones ---------- */
   let toastTimer = null;
   function toast(msg) {
@@ -209,10 +233,10 @@
     o.hidden = true; o.innerHTML = '';
     ui.picker = null;
   }
-  function confirmDialog(msg, okLabel, danger) {
+  function confirmDialog(msg, okLabel, danger, cancelLabel) {
     return new Promise((resolve) => {
       ui.confirm = resolve;
-      openSheet(`<h3>${esc(msg)}</h3><div class="btn-row"><button class="btn ghost" data-act="confirmNo">Cancelar</button><button class="btn ${danger ? 'danger' : ''}" data-act="confirmYes">${esc(okLabel || 'Aceptar')}</button></div>`);
+      openSheet(`<h3>${esc(msg)}</h3><div class="btn-row"><button class="btn ghost" data-act="confirmNo">${esc(cancelLabel || 'Cancelar')}</button><button class="btn ${danger ? 'danger' : ''}" data-act="confirmYes">${esc(okLabel || 'Aceptar')}</button></div>`);
     });
   }
 
@@ -237,6 +261,7 @@
     } else if (name === 'editar') { tab = 'recetas'; back = true; title = arg === 'nuevo' ? 'Nueva receta' : 'Editar receta'; html = viewEditor(arg); }
     else if (name === 'menu') { title = 'Menú semanal'; html = viewMenu(); }
     else if (name === 'cocina') { title = 'Mi cocina'; html = viewKitchen(); }
+    else if (name === 'estadisticas') { tab = 'cocina'; back = true; title = 'Estadísticas'; html = viewStats(); }
     else { tab = 'inicio'; html = viewHome(); }
     view.innerHTML = html;
     $('#pageTitle').textContent = title;
@@ -294,6 +319,7 @@
     const ideas = state.recipes.slice().sort((a, b) => (a.lastCooked || '').localeCompare(b.lastCooked || '')).slice(0, 3);
     html += '<h2 class="serif">Hace tiempo que no haces</h2>';
     html += ideas.map((r) => `<a class="card recipe-item" href="#receta/${esc(r.id)}"><p class="title">${esc(r.name)}</p><div class="muted small">Última vez: ${fmtAgo(r.lastCooked)}</div></a>`).join('');
+    if (state.log.length) html += `<a class="card recipe-item" href="#estadisticas"><p class="title">📊 Tus estadísticas</p><div class="muted small">${plural(state.log.length, 'comida registrada', 'comidas registradas')}. Toca para verlas.</div></a>`;
     return html;
   }
 
@@ -442,7 +468,7 @@
   function viewMenu() {
     const ws = startOfWeek(addDays(new Date(), ui.weekOffset * 7)), we = addDays(ws, 6), today = dateKey();
     const ms = (d) => d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
-    let html = `<div class="row spread"><button class="icon-btn" data-act="weekPrev" aria-label="Semana anterior">‹</button><div style="text-align:center"><strong>${ws.getDate()} ${ms(ws)} – ${we.getDate()} ${ms(we)}</strong>${ui.weekOffset === 0 ? '<div class="muted small">Esta semana</div>' : '<div><button class="btn small ghost" data-act="weekToday">Ir a hoy</button></div>'}</div><button class="icon-btn" data-act="weekNext" aria-label="Semana siguiente">›</button></div>`;
+    let html = `<div class="row wrap" style="margin-bottom:.5rem"><button class="btn small secondary" data-act="openImport">⬇ Importar menú o recetas</button></div><div class="row spread"><button class="icon-btn" data-act="weekPrev" aria-label="Semana anterior">‹</button><div style="text-align:center"><strong>${ws.getDate()} ${ms(ws)} – ${we.getDate()} ${ms(we)}</strong>${ui.weekOffset === 0 ? '<div class="muted small">Esta semana</div>' : '<div><button class="btn small ghost" data-act="weekToday">Ir a hoy</button></div>'}</div><button class="icon-btn" data-act="weekNext" aria-label="Semana siguiente">›</button></div>`;
     for (let i = 0; i < 7; i++) {
       const d = addDays(ws, i), key = dateKey(d), entry = state.menu[key] || {};
       html += `<div class="card day-card" style="${key === today ? 'border-color:var(--accent)' : ''}"><h3 class="serif">${cap1(d.toLocaleDateString('es-ES', { weekday: 'long' }))} ${d.getDate()}${key === today ? ' · hoy' : ''}</h3>${slotList().map((s) => `<div class="slot"><span class="lbl">${SLOT_LABELS[s]}</span><button class="slot-btn val" data-act="pickSlot" data-date="${key}" data-slot="${s}">${entry[s] && (entry[s].recipeId && getRecipe(entry[s].recipeId) || entry[s].text) ? (entry[s].recipeId && getRecipe(entry[s].recipeId) ? `<strong>${esc(getRecipe(entry[s].recipeId).name)}</strong>` : esc(entry[s].text)) : '<span class="empty">Toca para elegir</span>'}</button></div>`).join('')}</div>`;
@@ -475,6 +501,7 @@
   function viewKitchen() {
     const last = state.settings.lastBackup ? `${fmtAgo(state.settings.lastBackup.slice(0, 10))}` : 'nunca';
     return `
+      <a class="card recipe-item" href="#estadisticas"><p class="title">📊 Estadísticas</p><div class="muted small">${plural(state.log.length, 'comida registrada', 'comidas registradas')}</div></a>
       <div class="row spread"><h2 class="serif" style="margin:.2rem 0">Utensilios</h2><button class="btn small" data-act="addUtensil">+ Añadir</button></div>
       ${state.utensils.length ? state.utensils.map((u) => `<div class="card"><div class="row spread"><div class="grow"><strong>${esc(u.name)}</strong><div class="chips"><span class="chip static">${esc(u.type)}</span>${u.capacity ? `<span class="chip green static">${esc(String(u.capacity).replace('.', ','))} L</span>` : '<span class="chip static">Capacidad: por confirmar</span>'}</div>${u.notes ? `<p class="muted small">${esc(u.notes)}</p>` : ''}</div><button class="btn small secondary" data-act="editUtensil" data-id="${esc(u.id)}">Editar</button></div></div>`).join('') : emptyState('🍳', 'Aún no has añadido utensilios.')}
       <h2 class="serif">Ajustes</h2>
@@ -497,7 +524,7 @@
 
   /* ---------- copia de seguridad ---------- */
   function exportObject() {
-    return { app: 'que-comemos-hoy', version: 1, exportedAt: new Date().toISOString(), recipes: state.recipes, utensils: state.utensils, menu: state.menu, settings: { showBreakfast: state.settings.showBreakfast } };
+    return { app: 'que-comemos-hoy', version: 1, exportedAt: new Date().toISOString(), recipes: state.recipes, utensils: state.utensils, menu: state.menu, log: state.log, settings: { showBreakfast: state.settings.showBreakfast } };
   }
   function markBackup() { state.settings.lastBackup = new Date().toISOString(); save(); if (currentRoute().name === 'cocina' || currentRoute().name === 'inicio') render(); }
   const backupName = () => `que-comemos-hoy-${dateKey()}.json`;
@@ -542,20 +569,73 @@
     let obj;
     try { obj = JSON.parse(text); } catch (e) { toast('El texto no es un JSON válido'); return; }
     if (Array.isArray(obj)) obj = { recipes: obj };
-    if (!obj || typeof obj !== 'object' || (!obj.recipes && !obj.utensils && !obj.menu)) { toast('No encuentro recetas, utensilios ni menús en ese texto'); return; }
-    let recipes, utensils;
+    if (!obj || typeof obj !== 'object' || (!obj.recipes && !obj.utensils && !obj.menu && !obj.log)) { toast('No encuentro recetas, utensilios ni menús en ese texto'); return; }
+    let recipes, utensils, menu, log;
     try {
       recipes = (obj.recipes || []).map(normRecipe);
       utensils = (obj.utensils || []).map(normUtensil);
+      menu = normMenu(obj.menu);
+      log = (Array.isArray(obj.log) ? obj.log : []).map(normLog).filter(Boolean);
     } catch (e) { toast(e.message || 'Formato no válido'); return; }
     const replace = ($('input[name=imode]:checked') || {}).value === 'replace';
-    if (replace) { state.recipes = []; state.utensils = []; state.menu = {}; }
+    if (replace) { state.recipes = []; state.utensils = []; state.menu = {}; state.log = []; }
     for (const r of recipes) { const i = state.recipes.findIndex((x) => x.id === r.id); if (i >= 0) state.recipes[i] = r; else state.recipes.push(r); }
     for (const u of utensils) { const i = state.utensils.findIndex((x) => x.id === u.id); if (i >= 0) state.utensils[i] = u; else state.utensils.push(u); }
-    if (obj.menu && typeof obj.menu === 'object') Object.assign(state.menu, obj.menu);
+    for (const [day, slots] of Object.entries(menu)) state.menu[day] = { ...(state.menu[day] || {}), ...slots };
+    for (const l of log) if (!state.log.some((x) => x.id === l.id)) state.log.push(l);
     if (obj.settings && typeof obj.settings.showBreakfast === 'boolean') state.settings.showBreakfast = obj.settings.showBreakfast;
     save(); closeSheet(); render();
-    toast(`Importado: ${plural(recipes.length, 'receta', 'recetas')}, ${plural(utensils.length, 'utensilio', 'utensilios')}`);
+    toast(`Importado: ${[recipes.length && plural(recipes.length, 'receta', 'recetas'), utensils.length && plural(utensils.length, 'utensilio', 'utensilios'), Object.keys(menu).length && plural(Object.keys(menu).length, 'día de menú', 'días de menú')].filter(Boolean).join(', ') || 'sin cambios'}`);
+  }
+
+  /* ---------- registro de comidas ---------- */
+  function logCook(recipeId, servings) {
+    const r = getRecipe(recipeId);
+    const entry = { id: uid('l'), recipeId, name: r ? r.name : 'Receta', date: dateKey(), servings: servings || (r ? r.servings : null), rating: 0 };
+    state.log.push(entry);
+    if (r) r.lastCooked = entry.date;
+    save();
+    return entry;
+  }
+  function openRateSheet(entry) {
+    ui.rating = entry.id;
+    const n = state.log.filter((l) => l.recipeId === entry.recipeId).length;
+    openSheet(`<h3>¡Receta finalizada!</h3><p class="muted">Anotada. Ya la has cocinado ${plural(n, 'vez', 'veces')}. ¿Qué tal ha salido?</p>
+      <div class="row" style="justify-content:center">${[1, 2, 3, 4, 5].map((v) => `<button data-act="rateDone" data-v="${v}" aria-label="${v} estrellas" style="background:none;border:0;font-size:2.2rem;color:#d9a43b;cursor:pointer">☆</button>`).join('')}</div>
+      <div class="btn-row"><button class="btn ghost" data-act="closeSheet">Saltar</button></div>`);
+  }
+
+  /* ---------- vistas: estadísticas ---------- */
+  function barRows(items) {
+    const max = Math.max(...items.map((i) => i[1]), 1);
+    return items.map(([l, n]) => `<div class="bar-row"><span class="bar-l">${esc(l)}</span><div class="bar"><div style="width:${(n / max) * 100}%"></div></div><span class="bar-n">${n}</span></div>`).join('');
+  }
+  function viewStats() {
+    if (!state.log.length) return emptyState('📊', 'Todavía no hay comidas registradas. Cuando termines una receta en el modo cocina, o pulses «Cocinada hoy», aparecerá aquí.');
+    const log = state.log.slice().sort((a, b) => b.date.localeCompare(a.date));
+    const now = new Date(), today = dateKey(now), weekAgo = dateKey(addDays(now, -6)), monthPrefix = today.slice(0, 7);
+    const week = log.filter((l) => l.date >= weekAgo).length, month = log.filter((l) => l.date.startsWith(monthPrefix)).length;
+    const byRecipe = {};
+    for (const l of log) { const k = l.recipeId || l.name; byRecipe[k] = byRecipe[k] || { name: l.name, n: 0, id: l.recipeId }; byRecipe[k].n++; byRecipe[k].name = (getRecipe(l.recipeId) || {}).name || l.name; }
+    const top = Object.values(byRecipe).sort((a, b) => b.n - a.n).slice(0, 5);
+    const tagCount = {}, equipCount = {};
+    for (const l of log) { const r = getRecipe(l.recipeId); if (!r) continue; r.tags.forEach((t) => { tagCount[t] = (tagCount[t] || 0) + 1; }); r.equipment.forEach((e) => { equipCount[e] = (equipCount[e] || 0) + 1; }); }
+    const months = [];
+    for (let i = 5; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; months.push([cap1(d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '')), log.filter((l) => l.date.startsWith(key)).length]); }
+    const sortedPairs = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]);
+    const best = state.recipes.filter((r) => r.rating >= 4).sort((a, b) => b.rating - a.rating).slice(0, 5);
+    return `
+      <div class="card"><div class="grid3" style="text-align:center">
+        <div><div class="serif" style="font-size:1.8rem">${log.length}</div><div class="muted small">en total</div></div>
+        <div><div class="serif" style="font-size:1.8rem">${week}</div><div class="muted small">últimos 7 días</div></div>
+        <div><div class="serif" style="font-size:1.8rem">${month}</div><div class="muted small">este mes</div></div></div>
+        <p class="muted small" style="text-align:center">${plural(new Set(log.map((l) => l.recipeId || l.name)).size, 'receta distinta', 'recetas distintas')}</p></div>
+      <div class="card"><h3>Por mes</h3>${barRows(months)}</div>
+      <div class="card"><h3>Las que más repites</h3>${barRows(top.map((t) => [t.name, t.n]))}</div>
+      ${sortedPairs(tagCount).length ? `<div class="card"><h3>Por tipo de plato</h3>${barRows(sortedPairs(tagCount))}</div>` : ''}
+      ${sortedPairs(equipCount).length ? `<div class="card"><h3>Por aparato</h3>${barRows(sortedPairs(equipCount))}</div>` : ''}
+      ${best.length ? `<div class="card"><h3>Mejor valoradas</h3>${best.map((r) => `<div class="slot"><span class="val"><a href="#receta/${esc(r.id)}">${esc(r.name)}</a></span><span>${stars(r.rating)}</span></div>`).join('')}</div>` : ''}
+      <div class="card"><h3>Últimas cocinadas</h3>${log.slice(0, 12).map((l) => `<div class="slot"><span class="lbl">${esc(fmtAgo(l.date))}</span><span class="val">${getRecipe(l.recipeId) ? `<a href="#receta/${esc(l.recipeId)}">${esc(getRecipe(l.recipeId).name)}</a>` : esc(l.name)}</span></div>`).join('')}</div>`;
   }
 
   /* ---------- temporizadores y modo cocina ---------- */
@@ -643,13 +723,14 @@
 
   /* ---------- acciones (delegación de eventos) ---------- */
   const actions = {
-    back() { const { name, arg } = currentRoute(); go(name === 'editar' && arg !== 'nuevo' ? `#receta/${arg}` : '#recetas'); },
+    back() { const { name, arg } = currentRoute(); go(name === 'estadisticas' ? '#cocina' : name === 'editar' && arg !== 'nuevo' ? `#receta/${arg}` : '#recetas'); },
     filterTag(el) { ui.tag = ui.tag === el.dataset.v ? '' : el.dataset.v; render(); },
     filterEquip(el) { ui.equip = ui.equip === el.dataset.v ? '' : el.dataset.v; render(); },
     servInc(el) { const r = getRecipe(el.dataset.id); ui.servings[r.id] = Math.min(60, currentServings(r) + 1); render(); },
     servDec(el) { const r = getRecipe(el.dataset.id); ui.servings[r.id] = Math.max(1, currentServings(r) - 1); render(); },
     rate(el) { const r = getRecipe(el.dataset.id), v = Number(el.dataset.v); r.rating = r.rating === v ? 0 : v; save(); render(); },
-    cookedToday(el) { getRecipe(el.dataset.id).lastCooked = dateKey(); save(); render(); toast('Marcada como cocinada hoy'); },
+    cookedToday(el) { const e = logCook(el.dataset.id); render(); toast('Anotada como cocinada hoy'); if (e) openRateSheet(e); },
+    rateDone(el) { const l = state.log.find((x) => x.id === ui.rating), v = Number(el.dataset.v); if (l) { l.rating = v; const r = getRecipe(l.recipeId); if (r) r.rating = v; save(); } closeSheet(); render(); toast('¡Valoración guardada!'); },
     editNotes(el) { const r = getRecipe(el.dataset.id); openSheet(`<h3>Notas de ${esc(r.name)}</h3><textarea id="notesText" rows="7">${esc(r.notes)}</textarea><div class="btn-row"><button class="btn ghost" data-act="closeSheet">Cancelar</button><button class="btn" data-act="saveNotes" data-id="${esc(r.id)}">Guardar</button></div>`); },
     saveNotes(el) { getRecipe(el.dataset.id).notes = $('#notesText').value.trim(); save(); closeSheet(); render(); },
     async deleteRecipe(el) {
@@ -723,8 +804,9 @@
     cookPrev() { if (cook.i > 0) { cook.i--; renderCook(); $('.cook-body').scrollTop = 0; } },
     cookNext() { const r = getRecipe(cook.id); if (cook.i < r.steps.length - 1) { cook.i++; renderCook(); $('.cook-body').scrollTop = 0; } },
     async cookFinish() {
-      const id = cook.id; closeCook();
-      if (await confirmDialog('¡Buen provecho! ¿La marco como cocinada hoy?', 'Sí, marcar')) { getRecipe(id).lastCooked = dateKey(); save(); render(); }
+      const id = cook.id, r = getRecipe(id), servings = Math.round(cook.factor * r.servings * 100) / 100;
+      closeCook();
+      if (await confirmDialog('¿Has finalizado la receta?', 'Sí, finalizada', false, 'Todavía no')) { const e = logCook(id, servings); render(); openRateSheet(e); }
     },
     timerStart(el) {
       unlockAudio();
