@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#c2552d">
+<meta name="description" content="Recetario personal con parámetros Thermomix, menú semanal y modo cocina.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<title>¿Qué comemos hoy?</title>
+</head>
+<body>
+<div id="app">
+  <header class="topbar" id="topbar">
+    <button class="icon-btn" id="backBtn" data-act="back" aria-label="Volver" hidden>‹</button>
+    <h1 id="pageTitle">¿Qué comemos hoy?</h1>
+    <span class="topbar-spacer"></span>
+  </header>
+  <main id="view" tabindex="-1"></main>
+  <nav class="tabbar" id="tabbar" aria-label="Secciones">
+    <a href="#inicio" data-tab="inicio"><span class="ti">🏠</span><span>Inicio</span></a>
+    <a href="#recetas" data-tab="recetas"><span class="ti">📖</span><span>Recetas</span></a>
+    <a href="#menu" data-tab="menu"><span class="ti">🗓️</span><span>Menú</span></a>
+    <a href="#cocina" data-tab="cocina"><span class="ti">🍳</span><span>Mi cocina</span></a>
+  </nav>
+</div>
+<div id="overlay" class="overlay" hidden></div>
+<div id="cookmode" class="cookmode" hidden></div>
+<div id="toast" class="toast" hidden></div>
+<noscript>Esta aplicación necesita JavaScript.</noscript>
+<script src="app.js"></script>
+</body>
+</html>
