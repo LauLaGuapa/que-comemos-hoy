@@ -1,5 +1,5 @@
 /* Service worker: la app funciona sin conexión y se actualiza en segundo plano. */
-const CACHE = 'qch-v2';
+const CACHE = 'qch-v3';
 const SHELL = [
   './',
   './index.html',

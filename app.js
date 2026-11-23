@@ -3,11 +3,31 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const STORE_KEY = 'qch.v1';
   const TIMERS_KEY = 'qch.timers';
   const DEFAULT_TAGS = ['Primeros y segundos', 'Pan, masas y repostería', 'Postres y helados', 'Rápidas y entre semana'];
   const UTENSIL_TYPES = ['Thermomix', 'Olla', 'Olla a presión', 'Horno', 'Airfryer', 'Sartén', 'Otro'];
+  /* Pictogramas propios (no son los oficiales de Thermomix) y datos verificados de los modos de la TM7. */
+  const MODES = [
+    { k: ['sin tapa'], name: 'Sin tapa', icon: '🍳', tip: 'Cocina hasta 100 °C sin giro de cuchillas y sin tapa. Ideal para ingredientes delicados.' },
+    { k: ['dorar'], name: 'Dorar', icon: '🧅', tip: 'La TM7 tiene dos tipos de dorado.' },
+    { k: ['al vapor', 'vapor'], name: 'Al vapor', icon: '♨️', tip: 'Cocina al vapor con el Varoma y el cestillo.' },
+    { k: ['amasar'], name: 'Amasar', icon: '🥖', tip: 'Para panes, pizzas y pasta. Dos minutos equivalen a unos diez de amasado a mano.' },
+    { k: ['triturar'], name: 'Triturar', icon: '🌀', tip: 'Ideal para sopas y cremas.' },
+    { k: ['huevo'], name: 'Cocción de huevos', icon: '🥚', tip: 'De 2 a 6 huevos M fríos, sin el cestillo y con agua hasta la marca de 1 litro. Eliges el punto de cocción.' },
+    { k: ['hervidor', 'hervir'], name: 'Hervidor', icon: '🫖', tip: 'Para hervir agua.' },
+    { k: ['espesar'], name: 'Espesar', icon: '🥣', tip: 'Para espesar salsas y cremas.' },
+    { k: ['arroz'], name: 'Cocción de arroz', icon: '🍚', tip: 'Para cocer arroz.' },
+    { k: ['lenta'], name: 'Cocción lenta', icon: '🐢', tip: 'Para cocinar, hervir o guisar durante más tiempo.' },
+    { k: ['al vacio', 'vacio'], name: 'Al vacío', icon: '🥩', tip: 'Cocción al vacío (sous-vide).' },
+    { k: ['fermenta'], name: 'Fermentación', icon: '🫧', tip: 'Para fermentaciones, por ejemplo de masas.' },
+    { k: ['calentar'], name: 'Calentar', icon: '🔥', tip: 'Para calentar.' },
+    { k: ['turbo'], name: 'Turbo', icon: '⚡', tip: 'Golpes de máxima potencia y corta duración.' },
+    { k: ['rallar'], name: 'Rallar', icon: '🧀', tip: 'Rallado grueso o fino, con el accesorio correspondiente.' },
+    { k: ['laminar'], name: 'Laminar', icon: '🥒', tip: 'Para cortar en láminas, con el accesorio correspondiente.' }
+  ];
+  const findMode = (name) => { const n = norm(name); return MODES.find((m) => m.k.some((k) => n.includes(k))); };
   const SLOT_LABELS = { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena' };
 
   /* ---------- utilidades ---------- */
@@ -261,6 +281,7 @@
     } else if (name === 'editar') { tab = 'recetas'; back = true; title = arg === 'nuevo' ? 'Nueva receta' : 'Editar receta'; html = viewEditor(arg); }
     else if (name === 'menu') { title = 'Menú semanal'; html = viewMenu(); }
     else if (name === 'cocina') { title = 'Mi cocina'; html = viewKitchen(); }
+    else if (name === 'guia') { tab = 'cocina'; back = true; title = 'Guía Thermomix'; html = viewGuide(); }
     else if (name === 'estadisticas') { tab = 'cocina'; back = true; title = 'Estadísticas'; html = viewStats(); }
     else { tab = 'inicio'; html = viewHome(); }
     view.innerHTML = html;
@@ -363,13 +384,25 @@
   function tmChips(tm) {
     if (!tm) return '';
     const c = [];
-    if (tm.mode) c.push(esc(tm.mode));
+    if (tm.mode) { const m = findMode(tm.mode); c.push((m ? m.icon + ' ' : '') + esc(tm.mode)); }
     if (tm.time) c.push('⏱ ' + esc(tm.time));
     if (tm.temp) c.push('🌡 ' + (/^\d+$/.test(tm.temp) ? tm.temp + ' °C' : esc(tm.temp)));
-    if (tm.speed) c.push(/^\d+([.,]\d+)?$/.test(tm.speed) ? 'vel. ' + esc(tm.speed) : esc(tm.speed));
+    if (tm.speed) c.push(/^\d+([.,]\d+)?$/.test(tm.speed) ? 'vel. ' + esc(tm.speed) : /cuchara/i.test(tm.speed) ? '🥄 ' + esc(tm.speed) : esc(tm.speed));
     if (tm.reverse) c.push('↺ giro inverso');
     return c.length ? `<div class="chips">${c.map((x) => `<span class="chip tm">${x}</span>`).join('')}</div>` : '';
   }
+  function tmHowTo(tm) {
+    const out = [], m = tm.mode ? findMode(tm.mode) : null;
+    out.push(m && m.k.includes('sin tapa') ? 'Este modo se usa sin tapa. Si la pantalla te pide algo más, hazle caso.' : 'Cierra bien la tapa y coloca el cubilete (salvo que la receta diga otra cosa).');
+    if (tm.mode) out.push(`En la pantalla de la Thermomix elige el modo «${tm.mode}».`);
+    if (tm.temp) out.push(/varoma/i.test(tm.temp) ? 'Temperatura: Varoma (cocción al vapor).' : /^\d+$/.test(tm.temp) ? `Temperatura: ${tm.temp} °C.` : `Temperatura: ${tm.temp}.`);
+    if (tm.speed) out.push(/cuchara/i.test(tm.speed) ? 'Velocidad cuchara: la más suave, para remover sin triturar.' : /^\d+([.,]\d+)?$/.test(tm.speed) ? `Velocidad ${tm.speed} (de 1 a 10: cuanto más alta, más fuerte giran las cuchillas).` : `Velocidad: ${tm.speed}.`);
+    if (tm.reverse) out.push('Activa el giro inverso (símbolo ↺): las cuchillas giran al revés y mezclan sin cortar.');
+    if (tm.time) out.push(`Tiempo: ${tm.time}.`);
+    out.push('Pulsa el botón de inicio y espera a que la Thermomix termine y avise.');
+    return out;
+  }
+  const helpBtn = (rid, i) => `<button class="btn small ghost" data-act="tmHelp" data-r="${esc(rid)}" data-i="${i}">❓ Cómo se hace</button>`;
   function currentServings(r) { return ui.servings[r.id] || r.servings; }
   function tmWarning(r, factor) {
     const hasTM = r.steps.some((s) => s.tm) || r.equipment.some((e) => /thermomix/i.test(e));
@@ -398,7 +431,7 @@
         <ul class="ing-list">${r.ingredients.map((i) => ingHtml(i, factor)).join('') || '<li class="muted">Sin ingredientes.</li>'}</ul>
       </div>
       <div class="card"><h3>Pasos</h3>
-        <ol class="steps">${r.steps.map((s) => `<li>${esc(s.text)}${tmChips(s.tm)}${s.timer ? `<div class="chips"><span class="chip static">⏲ ${fmtDuration(s.timer.seconds)}</span></div>` : ''}${s.hint ? `<div class="hint">👀 ${esc(s.hint)}</div>` : ''}</li>`).join('') || '<li class="muted">Sin pasos.</li>'}</ol>
+        <ol class="steps">${r.steps.map((s, i) => `<li>${esc(s.text)}${tmChips(s.tm)}${s.tm ? helpBtn(r.id, i) : ''}${s.timer ? `<div class="chips"><span class="chip static">⏲ ${fmtDuration(s.timer.seconds)}</span></div>` : ''}${s.hint ? `<div class="hint">👀 ${esc(s.hint)}</div>` : ''}</li>`).join('') || '<li class="muted">Sin pasos.</li>'}</ol>
       </div>
       <div class="card"><div class="row spread"><h3 style="margin:0">Notas</h3><button class="btn small secondary" data-act="editNotes" data-id="${esc(r.id)}">Editar</button></div>
         <p>${r.notes ? esc(r.notes).replace(/\n/g, '<br>') : '<span class="muted">Sin notas todavía.</span>'}</p></div>
@@ -501,6 +534,7 @@
   function viewKitchen() {
     const last = state.settings.lastBackup ? `${fmtAgo(state.settings.lastBackup.slice(0, 10))}` : 'nunca';
     return `
+      <a class="card recipe-item" href="#guia"><p class="title">🔰 Guía Thermomix</p><div class="muted small">Qué significan los modos y los parámetros, para cocinar a mano.</div></a>
       <a class="card recipe-item" href="#estadisticas"><p class="title">📊 Estadísticas</p><div class="muted small">${plural(state.log.length, 'comida registrada', 'comidas registradas')}</div></a>
       <div class="row spread"><h2 class="serif" style="margin:.2rem 0">Utensilios</h2><button class="btn small" data-act="addUtensil">+ Añadir</button></div>
       ${state.utensils.length ? state.utensils.map((u) => `<div class="card"><div class="row spread"><div class="grow"><strong>${esc(u.name)}</strong><div class="chips"><span class="chip static">${esc(u.type)}</span>${u.capacity ? `<span class="chip green static">${esc(String(u.capacity).replace('.', ','))} L</span>` : '<span class="chip static">Capacidad: por confirmar</span>'}</div>${u.notes ? `<p class="muted small">${esc(u.notes)}</p>` : ''}</div><button class="btn small secondary" data-act="editUtensil" data-id="${esc(u.id)}">Editar</button></div></div>`).join('') : emptyState('🍳', 'Aún no has añadido utensilios.')}
@@ -603,6 +637,26 @@
     openSheet(`<h3>¡Receta finalizada!</h3><p class="muted">Anotada. Ya la has cocinado ${plural(n, 'vez', 'veces')}. ¿Qué tal ha salido?</p>
       <div class="row" style="justify-content:center">${[1, 2, 3, 4, 5].map((v) => `<button data-act="rateDone" data-v="${v}" aria-label="${v} estrellas" style="background:none;border:0;font-size:2.2rem;color:#d9a43b;cursor:pointer">☆</button>`).join('')}</div>
       <div class="btn-row"><button class="btn ghost" data-act="closeSheet">Saltar</button></div>`);
+  }
+
+  /* ---------- vistas: guía Thermomix ---------- */
+  function viewGuide() {
+    const P = (t, d) => `<div class="slot"><span class="lbl" style="width:6.5rem"><strong>${t}</strong></span><span class="val">${d}</span></div>`;
+    return `<p class="muted">Para cocinar a mano en la Thermomix sin saber nada. Los dibujos son de esta app (no son los símbolos oficiales de la Thermomix): sirven para reconocer cada modo por su nombre. Ante cualquier duda, manda el manual de tu modelo.</p>
+      <div class="card"><h3>Cómo leer los parámetros</h3>
+        ${P('Modo', 'Se elige en la pantalla. Prepara la Thermomix para un tipo de tarea (amasar, triturar, cocinar al vapor…).')}
+        ${P('Tiempo', 'Cuánto debe funcionar. Por ejemplo «20 s» son veinte segundos y «6 min», seis minutos.')}
+        ${P('Temperatura', 'Grados centígrados. «Varoma» significa cocción al vapor.')}
+        ${P('Velocidad', 'De 1 a 10. La 1 es muy suave y la 10 muy fuerte. «Cuchara» es la más suave, para remover sin triturar.')}
+        ${P('Giro inverso', 'Símbolo ↺. Las cuchillas giran al revés: mezclan sin cortar, para no deshacer los ingredientes.')}
+        ${P('Cubilete', 'La tapa pequeña del centro de la tapa del vaso. Suele ir puesto.')}
+        ${P('Cestillo', 'Para escurrir o cocer al vapor dentro del vaso.')}
+        ${P('Varoma', 'Recipiente que se coloca encima del vaso para cocinar al vapor.')}
+        ${P('Mariposa', 'Para montar o mezclar suave. En general no se sube de velocidad 4 con ella: mira el manual de tu modelo.')}
+      </div>
+      <div class="card"><h3>Los modos de la TM7</h3>
+        ${MODES.map((m) => `<div class="slot"><span class="lbl" style="width:2.2rem;font-size:1.5rem">${m.icon}</span><span class="val"><strong>${esc(m.name)}</strong><div class="muted small">${esc(m.tip)}</div></span></div>`).join('')}
+      </div>`;
   }
 
   /* ---------- vistas: estadísticas ---------- */
@@ -714,7 +768,7 @@
         ${others.length ? `<div class="chips">${others.map(([k, x]) => `<span class="chip static">⏲ ${esc(x.label.split('· ')[1] || '')}: <strong data-digits="${esc(k)}">${fmtClock((x.end - Date.now()) / 1000)}</strong></span>`).join('')}</div>` : ''}
         ${cook.ing ? `<div class="ing-panel"><ul class="ing-list">${r.ingredients.map((i) => ingHtml(i, cook.factor)).join('')}</ul></div>` : ''}
         <div class="text">${esc(s.text)}</div>
-        ${tmChips(s.tm)}
+        ${tmChips(s.tm)}${s.tm ? helpBtn(r.id, cook.i) : ''}
         ${s.hint ? `<div class="hint" style="font-size:1.1rem">👀 ${esc(s.hint)}</div>` : ''}
         ${timerHtml}
       </div>
@@ -723,7 +777,7 @@
 
   /* ---------- acciones (delegación de eventos) ---------- */
   const actions = {
-    back() { const { name, arg } = currentRoute(); go(name === 'estadisticas' ? '#cocina' : name === 'editar' && arg !== 'nuevo' ? `#receta/${arg}` : '#recetas'); },
+    back() { const { name, arg } = currentRoute(); go(name === 'estadisticas' || name === 'guia' ? '#cocina' : name === 'editar' && arg !== 'nuevo' ? `#receta/${arg}` : '#recetas'); },
     filterTag(el) { ui.tag = ui.tag === el.dataset.v ? '' : el.dataset.v; render(); },
     filterEquip(el) { ui.equip = ui.equip === el.dataset.v ? '' : el.dataset.v; render(); },
     servInc(el) { const r = getRecipe(el.dataset.id); ui.servings[r.id] = Math.min(60, currentServings(r) + 1); render(); },
@@ -798,6 +852,12 @@
     async pasteClip() { try { $('#importText').value = await navigator.clipboard.readText(); } catch (e) { toast('No puedo leer el portapapeles: pega el texto a mano'); } },
     async wipe() { if (await confirmDialog('¿Borrar TODAS las recetas, utensilios y menús de este móvil? Haz antes una copia.', 'Borrar todo', true)) { const created = state.settings.created; state = defaultState(); state.settings.created = created; save(); render(); toast('Todo borrado'); } },
     /* modo cocina */
+    openGuide() { closeSheet(); if (!$('#cookmode').hidden) closeCook(); go('#guia'); },
+    tmHelp(el) {
+      const r = getRecipe(el.dataset.r), st = r && r.steps[Number(el.dataset.i)];
+      if (!st || !st.tm) return;
+      openSheet(`<h3>Cómo se hace en la Thermomix</h3><p class="muted">${esc(st.text)}</p>${tmChips(st.tm)}<ol class="steps">${tmHowTo(st.tm).map((t) => `<li>${esc(t)}</li>`).join('')}</ol>${st.tm.mode && findMode(st.tm.mode) ? `<div class="hint">${findMode(st.tm.mode).icon} ${esc(findMode(st.tm.mode).tip)}</div>` : ''}<p class="muted small">Si la receta dice algo distinto, sigue siempre lo de la receta.</p><div class="btn-row"><button class="btn ghost" data-act="openGuide">Guía completa</button><button class="btn" data-act="closeSheet">Entendido</button></div>`);
+    },
     startCook(el) { startCook(el.dataset.id); },
     closeCook() { closeCook(); },
     toggleIng() { cook.ing = !cook.ing; renderCook(); },
