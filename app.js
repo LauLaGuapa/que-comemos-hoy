@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.3.1';
   const STORE_KEY = 'qch.v1';
   const TIMERS_KEY = 'qch.timers';
   const DEFAULT_TAGS = ['Primeros y segundos', 'Pan, masas y repostería', 'Postres y helados', 'Rápidas y entre semana'];
@@ -790,7 +790,7 @@
     let timerHtml = '';
     if (s.timer) {
       if (t && t.done) timerHtml = `<div class="timer-box done"><div>¡Tiempo cumplido!</div><div class="digits">00:00</div><button class="btn block" data-act="timerStop" data-key="${esc(key)}">Parar alarma</button></div>`;
-      else if (t) timerHtml = `<div class="timer-box"><div class="muted">Temporizador en marcha</div><div class="digits" data-digits="${esc(key)}">${fmtClock((t.end - Date.now()) / 1000)}</div><div class="row"><button class="btn secondary grow" data-act="timerAdd" data-key="${esc(key)}">+5 min</button><button class="btn danger grow" data-act="timerStop" data-key="${esc(key)}">Cancelar</button></div></div>`;
+      else if (t) timerHtml = `<div class="timer-box"><div class="muted">Temporizador en marcha</div><div class="digits" data-digits="${esc(key)}">${fmtClock((t.end - Date.now()) / 1000)}</div><button class="btn block" data-act="clockTimer" data-key="${esc(key)}">⏰ Avisar también con el reloj del móvil</button><div class="row" style="margin-top:.5rem"><button class="btn secondary grow" data-act="timerAdd" data-key="${esc(key)}">+5 min</button><button class="btn danger grow" data-act="timerStop" data-key="${esc(key)}">Cancelar</button></div></div>`;
       else timerHtml = `<div class="timer-box"><div class="muted">Temporizador</div><div class="digits">${fmtClock(s.timer.seconds)}</div><button class="btn block" data-act="timerStart" data-key="${esc(key)}" data-sec="${s.timer.seconds}" data-label="${esc(r.name + ' · paso ' + (cook.i + 1))}" data-rid="${esc(r.id)}">▶ Iniciar ${esc(fmtDuration(s.timer.seconds))}</button></div>`;
     }
     const others = Object.entries(timers).filter(([k, x]) => k.startsWith(r.id + ':') && k !== key && !x.done);
@@ -901,6 +901,12 @@
       const id = cook.id, r = getRecipe(id), servings = Math.round(cook.factor * r.servings * 100) / 100;
       closeCook();
       if (await confirmDialog('¿Has finalizado la receta?', 'Sí, finalizada', false, 'Todavía no')) { const e = logCook(id, servings); render(); openRateSheet(e); }
+    },
+    clockTimer(el) {
+      const t = timers[el.dataset.key]; if (!t) return;
+      const sec = Math.max(1, Math.round((t.end - Date.now()) / 1000));
+      const msg = encodeURIComponent((t.label || 'Temporizador').replace(/;/g, ','));
+      location.href = 'intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=' + sec + ';S.android.intent.extra.alarm.MESSAGE=' + msg + ';end';
     },
     timerStart(el) {
       unlockAudio();
